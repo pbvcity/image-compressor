@@ -1,0 +1,9 @@
+.DS_Store
+.venv/
+__pycache__/
+*.pyc
+
+# 本机素材、压缩结果和运行记录不提交。
+/input/
+/compressed/
+/reports/
