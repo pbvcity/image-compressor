@@ -3,9 +3,12 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import sys
 import unittest
 
 from PIL import Image
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 SPEC = importlib.util.spec_from_file_location(
     "compress_images", Path(__file__).resolve().parents[1] / "scripts/compress_images.py")
@@ -24,7 +27,8 @@ class CompressionTests(unittest.TestCase):
         self.source.mkdir()
 
     def run_compression(self, *extra):
-        return compress.main([str(self.source), "-o", str(self.output), "--reports", str(self.reports), "--no-pngquant", *extra])
+        return compress.main([str(self.source), "-o", str(self.output), "--reports", str(self.reports),
+                              "--no-pngquant", "--convert-opaque-to-jpeg", *extra])
 
     def test_nested_structure_dimensions_and_exact_alpha(self):
         folder = self.source / "目录 空格" / "深层"
@@ -85,14 +89,17 @@ class CompressionTests(unittest.TestCase):
         self.assertEqual((self.output / "a.jpg").read_bytes(), before)
         self.assertEqual(self.run_compression("--overwrite"), 0)
 
-    def test_bad_input_reported_without_blocking_other_files(self):
+    def test_unreadable_and_high_depth_inputs_are_preserved(self):
         (self.source / "bad.png").write_bytes(b"not a PNG")
         Image.new("I;16", (8, 8)).save(self.source / "16bit.png")
         Image.new("RGB", (8, 8), "red").save(self.source / "ok.png")
-        self.assertEqual(self.run_compression(), 1)
+        self.assertEqual(self.run_compression(), 0)
         report = json.loads((self.reports / "compression-report.json").read_text())
-        self.assertEqual(report["summary"]["failed"], 2)
-        self.assertEqual(report["summary"]["succeeded"], 1)
+        self.assertEqual(report["summary"]["failed"], 0)
+        self.assertEqual(report["summary"]["succeeded"], 3)
+        self.assertEqual(report["summary"]["copied"], 2)
+        for name in ("bad.png", "16bit.png"):
+            self.assertEqual((self.output / name).read_bytes(), (self.source / name).read_bytes())
 
     def test_nested_output_is_excluded(self):
         self.output = self.source / "output"
@@ -143,10 +150,11 @@ class CompressionTests(unittest.TestCase):
         (original / "scripts").mkdir(parents=True)
         (original / "input/任意新批次/子目录").mkdir(parents=True)
         shutil.copy(Path(__file__).resolve().parents[1] / "scripts/compress_images.py", original / "scripts")
+        shutil.copy(Path(__file__).resolve().parents[1] / "scripts/image_formats.py", original / "scripts")
         Image.new("RGB", (9, 7), "green").save(original / "input/任意新批次/子目录/a.png")
         moved = self.root / "已移动且改名"
         original.rename(moved)
-        result = subprocess.run([sys.executable, str(moved / "scripts/compress_images.py"), "--no-pngquant"],
+        result = subprocess.run([sys.executable, str(moved / "scripts/compress_images.py"), "--no-pngquant", "--convert-opaque-to-jpeg"],
                                 cwd=self.root, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue((moved / "compressed/任意新批次/子目录/a.jpg").exists())

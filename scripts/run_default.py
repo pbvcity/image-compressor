@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import os
+import argparse
 from pathlib import Path
 import subprocess
 import sys
+
+from image_formats import find_directories, find_files
 
 ROOT = Path(__file__).resolve().parents[1]
 MIN_PYTHON = (3, 10)
@@ -37,6 +40,8 @@ def ensure_environment(root: Path) -> Path:
 from importlib.metadata import version
 from pathlib import Path
 from PIL import Image
+from pillow_heif import register_heif_opener
+register_heif_opener()
 for line in Path('requirements.txt').read_text(encoding='utf-8').splitlines():
     line = line.strip()
     if line and not line.startswith('#'):
@@ -57,32 +62,38 @@ for line in Path('requirements.txt').read_text(encoding='utf-8').splitlines():
     return python
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--convert-opaque-to-jpeg", action="store_true",
+                        help="不透明静态位图转质量 90 JPG；默认保留格式和文件名")
+    args = parser.parse_args(argv)
     if sys.version_info < MIN_PYTHON:
         print("需要 Python 3.10 或以上，请安装后重新运行。", flush=True)
         return 2
     source = ROOT / "input"
     source.mkdir(exist_ok=True)
-    files = (p for p in source.rglob("*") if p.is_file() and not p.is_symlink()
-             and p.suffix.lower() == ".png"
-             and not any(part.startswith(".") for part in p.relative_to(source).parts))
-    if next(files, None) is None:
-        print(f"请先将 PNG 图片或图片文件夹放入：{source}\n放好后重新双击启动文件。", flush=True)
+    files = find_files(source)
+    if next(files, None) is None and next(find_directories(source), None) is None:
+        print(f"请先将待处理文件或文件夹放入：{source}\n常见位图自动压缩，矢量图和其他文件原样复制。\n放好后重新双击启动文件。", flush=True)
         return 0
 
     python = ensure_environment(ROOT)
-    print("开始压缩：保留尺寸和透明度，不透明图转质量 90 JPG，覆盖同名输出。", flush=True)
-    result = command([str(python), str(ROOT / "scripts/compress_images.py"), "--overwrite"], ROOT)
+    mode = "不透明静态位图转质量 90 JPG" if args.convert_opaque_to_jpeg else "保留图片格式和文件名"
+    print(f"开始处理：{mode}；动画/多页完整保留，其他文件原样复制，覆盖同名输出。", flush=True)
+    compression = [str(python), str(ROOT / "scripts/compress_images.py"), "--overwrite"]
+    if args.convert_opaque_to_jpeg:
+        compression.append("--convert-opaque-to-jpeg")
+    result = command(compression, ROOT)
     if result not in (0, 1):
         print("压缩未能开始，请检查上方错误提示。", flush=True)
         return result
     # 即使部分图片压缩失败，也复核本次成功的图片并记录失败项。
-    print("正在逐张复核本次结果……", flush=True)
+    print("正在逐文件复核本次结果……", flush=True)
     verified = command([str(python), str(ROOT / "scripts/verify_results.py")], ROOT)
     if result or verified:
         print(f"本次任务存在失败，请查看：{ROOT / 'reports'}", flush=True)
         return result or verified
-    print(f"压缩和复核全部通过。\n结果图片：{ROOT / 'compressed'}\n本次报告：{ROOT / 'reports'}", flush=True)
+    print(f"处理和复核全部通过。\n输出目录：{ROOT / 'compressed'}\n本次报告：{ROOT / 'reports'}", flush=True)
     return 0
 
 
