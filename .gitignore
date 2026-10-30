@@ -1,9 +1,67 @@
-.DS_Store
-.venv/
-__pycache__/
-*.pyc
-
-# 本机素材、压缩结果和运行记录不提交。
+# 本机输入、完整输出和运行报告。
 /input/
 /compressed/
 /reports/
+
+# 自定义报告位置时生成的固定名称文件。
+compression-report.csv
+compression-report.json
+compression-summary.md
+quality-preview.png
+
+# 日志及轮转日志。
+logs/
+*.log
+*.log.*
+
+# Python 虚拟环境、字节码和工具缓存。
+.venv/
+.venv-*/
+/venv/
+/env/
+__pycache__/
+*.py[cod]
+*$py.class
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.tox/
+.nox/
+.hypothesis/
+
+# 测试运行产物及覆盖率报告。
+test-results/
+test-output/
+test-outputs/
+test-artifacts/
+.coverage
+.coverage.*
+coverage/
+htmlcov/
+coverage.xml
+coverage.json
+junit.xml
+
+# 构建和打包产物。
+/build/
+/dist/
+/artifacts/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# 原子写入残留及本机临时文件。
+.compress-*
+/tmp/
+/temp/
+*.tmp
+*.temp
+
+# macOS / Windows 目录元数据。
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
